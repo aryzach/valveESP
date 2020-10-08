@@ -33,8 +33,6 @@ class OTAUpdater:
         print('\tLatest version: ', latest_version)
         if latest_version > current_version:
             print('New version available, will download and install on next reboot')
-            os.mkdir(self.modulepath('next'))
-            print('dir made')
             with open(self.modulepath('next/.version_on_reboot'), 'w') as versionfile:
                 versionfile.write(latest_version)
                 print('written')
@@ -118,17 +116,16 @@ class OTAUpdater:
         return version
 
     def download_all_files(self, root_url, version):
-        print('root url: ',root_url)
         new_file = self.http_client.get(root_url + '/main.py')
 
         json = new_file.json()
 
         download_url = json['download_url']
+        print('download url: ',download_url)
         path = json['path'] 
         print('path: ',path)
-        print('download url: ', download_url)
         download_path = self.modulepath('next/' + path)
-        self.download_file(download_url.replace('main/', ''), download_path)
+        self.download_file(download_url, download_path)
 
 
     def old_download_all_files(self, root_url, version):
@@ -147,10 +144,13 @@ class OTAUpdater:
         file_list.close()
 
     def download_file(self, url, path):
+        print(url)
         print('\tDownloading: ', path)
         with open(path, 'w') as outfile:
             try:
+                print('149')
                 response = self.http_client.get(url)
+                print('151')
                 outfile.write(response.text)
             finally:
                 response.close()
