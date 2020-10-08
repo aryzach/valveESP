@@ -2,7 +2,7 @@ import usocket
 import os
 import gc
 import machine
-
+import urequests
 
 class OTAUpdater:
 
@@ -25,11 +25,8 @@ class OTAUpdater:
         print('network config:', sta_if.ifconfig())
 
     def check_for_update_to_install_during_next_reboot(self):
-        print('modpath(main_dir): ', self.modulepath(self.main_dir))
         current_version = self.get_version(self.modulepath(self.main_dir))
-        print('curr ver: ' ,current_version)
         latest_version = self.get_latest_version()
-        print('lat ver: ', latest_version)
 
         print('Checking version... ')
         print('\tCurrent version: ', current_version)
@@ -37,12 +34,13 @@ class OTAUpdater:
         if latest_version > current_version:
             print('New version available, will download and install on next reboot')
             os.mkdir(self.modulepath('next'))
+            print('dir made')
             with open(self.modulepath('next/.version_on_reboot'), 'w') as versionfile:
                 versionfile.write(latest_version)
+                print('written')
                 versionfile.close()
 
     def download_and_install_update_if_available(self, ssid, password):
-        print(os.listdir(self.module))
         if 'next' in os.listdir(self.module):
             if '.version_on_reboot' in os.listdir(self.modulepath('next')):
                 latest_version = self.get_version(self.modulepath('next'), '.version_on_reboot')
@@ -104,27 +102,39 @@ class OTAUpdater:
         os.rmdir(directory)
 
     def get_version(self, directory, version_file_name='.version'):
-        print(version_file_name)
-        print(os.listdir(directory))
         if version_file_name in os.listdir(directory):
             f = open(directory + '/' + version_file_name)
             version = f.read()
             f.close()
-            print(version)
             return version
         return '0.0'
 
     def get_latest_version(self):
-        latest_release = self.http_client.get(self.github_repo + '/releases/latest')
-        print(latest_release)
-        print(latest_release.json())
-        version = latest_release.json()['tag_name']
+        latest_release = self.http_client.get(self.github_repo + '/releases')
+        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+        version = latest_release.json()[0]['tag_name']
         latest_release.close()
+        print('after version')
         return version
 
     def download_all_files(self, root_url, version):
-        file_list = self.http_client.get(root_url + '?ref=refs/tags/' + version)
+        print('root url: ',root_url)
+        new_file = self.http_client.get(root_url + '/main.py')
+
+        json = new_file.json()
+
+        download_url = json['download_url']
+        path = json['path'] 
+        print('path: ',path)
+        print('download url: ', download_url)
+        download_path = self.modulepath('next/' + path)
+        self.download_file(download_url.replace('main/', ''), download_path)
+
+
+    def old_download_all_files(self, root_url, version):
+        #file_list = self.http_client.get(root_url + '?ref=refs/tags/' + version)
         for file in file_list.json():
+            print(file)
             if file['type'] == 'file':
                 download_url = file['download_url']
                 download_path = self.modulepath('next/' + file['path'].replace(self.main_dir + '/', ''))
@@ -186,6 +196,7 @@ class Response:
 class HttpClient:
 
     def request(self, method, url, data=None, json=None, headers={}, stream=None):
+        print('url: ',url)
         try:
             proto, dummy, host, path = url.split('/', 3)
         except ValueError:
@@ -203,8 +214,11 @@ class HttpClient:
             host, port = host.split(':', 1)
             port = int(port)
 
-        ai = usocket.getaddrinfo(host, port, 0, usocket.SOCK_STREAM)
+
+        ai = usocket.getaddrinfo(host, port)
+        print(ai)
         ai = ai[0]
+        print(ai)
 
         s = usocket.socket(ai[0], ai[1], ai[2])
         try:
@@ -223,7 +237,7 @@ class HttpClient:
             # add user agent
             s.write('User-Agent')
             s.write(b': ')
-            s.write('MicroPython OTAUpdater')
+            s.write('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36')
             s.write(b'\r\n')
             if json is not None:
                 assert data is None
@@ -237,7 +251,7 @@ class HttpClient:
                 s.write(data)
 
             l = s.readline()
-            # print(l)
+            print('readline l: ', l)
             l = l.split(None, 2)
             status = int(l[1])
             reason = ''
@@ -258,15 +272,19 @@ class HttpClient:
             raise
 
         resp = Response(s)
+        print('initial: ', resp)
         resp.status_code = status
         resp.reason = reason
+        print('final: ', resp)
         return resp
+
 
     def head(self, url, **kw):
         return self.request('HEAD', url, **kw)
 
     def get(self, url, **kw):
         return self.request('GET', url, **kw)
+        #return self.req(url)
 
     def post(self, url, **kw):
         return self.request('POST', url, **kw)

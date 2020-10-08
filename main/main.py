@@ -2,7 +2,7 @@ from ota_updater import OTAUpdater
 
 
 def download_and_install_update_if_available():
-     o = OTAUpdater('http://github.com/aryzach/valveESP')
+     o = OTAUpdater('https://github.com/aryzach/valveESP')
      o.download_and_install_update_if_available('twistedfields', 'alwaysbekind')
 
 
@@ -11,7 +11,6 @@ def start():
     # from main.x import YourProject
     # project = YourProject()
     # ...
-    print('hi')
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('', 80))
     s.listen(5)
@@ -26,7 +25,7 @@ def start():
         led_on = request.find('/?led=on')
         led_off = request.find('/?led=off')
         if led_on == 6:
-            print('LED ON')
+            print('LED Cool')
             led.value(0)
         if led_off == 6:
             print('LED OFF')
