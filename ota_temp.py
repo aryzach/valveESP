@@ -1,7 +1,5 @@
-import usocket
 import os
 import gc
-import machine
 
 
 class OTAUpdater:
@@ -25,8 +23,11 @@ class OTAUpdater:
         print('network config:', sta_if.ifconfig())
 
     def check_for_update_to_install_during_next_reboot(self):
+        print('modpath(main_dir): ', self.modulepath(self.main_dir))
         current_version = self.get_version(self.modulepath(self.main_dir))
+        print('curr ver: ' ,current_version)
         latest_version = self.get_latest_version()
+        print('lat ver: ', latest_version)
 
         print('Checking version... ')
         print('\tCurrent version: ', current_version)
@@ -39,6 +40,7 @@ class OTAUpdater:
                 versionfile.close()
 
     def download_and_install_update_if_available(self, ssid, password):
+        print(os.listdir(self.module))
         if 'next' in os.listdir(self.module):
             if '.version_on_reboot' in os.listdir(self.modulepath('next')):
                 latest_version = self.get_version(self.modulepath('next'), '.version_on_reboot')
@@ -100,15 +102,20 @@ class OTAUpdater:
         os.rmdir(directory)
 
     def get_version(self, directory, version_file_name='.version'):
+        print(version_file_name)
+        print(os.listdir(directory))
         if version_file_name in os.listdir(directory):
             f = open(directory + '/' + version_file_name)
             version = f.read()
             f.close()
+            print(version)
             return version
         return '0.0'
 
     def get_latest_version(self):
         latest_release = self.http_client.get(self.github_repo + '/releases/latest')
+        print(latest_release)
+        print(latest_release.json())
         version = latest_release.json()['tag_name']
         latest_release.close()
         return version

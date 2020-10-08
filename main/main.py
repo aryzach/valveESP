@@ -1,8 +1,8 @@
-from ota_update import OTAUpdater
+from ota_updater import OTAUpdater
 
 
 def download_and_install_update_if_available():
-     o = OTAUpdater('https://github.com/aryzach/valveESP')
+     o = OTAUpdater('http://github.com/aryzach/valveESP')
      o.download_and_install_update_if_available('twistedfields', 'alwaysbekind')
 
 
@@ -17,7 +17,7 @@ def start():
     s.listen(5)
 
     while True:
-        download_and_install_update_if_available()
+        OTAUpdater('https://github.com/aryzach/valveESP').check_for_update_to_install_during_next_reboot()
         conn, addr = s.accept()
         print('Got a connection from %s' % str(addr))
         request = conn.recv(1024)
