@@ -25,22 +25,6 @@ class OTAUpdater:
                 pass
         print('network config:', sta_if.ifconfig())
 
-    def check_for_update_to_install_during_next_reboot(self):
-        current_version = self.get_version(self.modulepath(self.main_dir))
-        latest_version = self.get_latest_version()
-
-        print('Checking version... ')
-        print('\tCurrent version: ', current_version)
-        print('\tLatest version: ', latest_version)
-        if latest_version > current_version:
-            print('New version available, will download and install on next reboot')
-            if not 'next' in os.listdir():
-                os.mkdir(self.modulepath('next'))
-            with open(self.modulepath('next/.version_on_reboot'), 'w') as versionfile:
-                versionfile.write(latest_version)
-                print('written')
-                versionfile.close()
-
     def get_current_version(self):
         if 'version' in os.listdir(): 
             f = open('version')
@@ -59,89 +43,20 @@ class OTAUpdater:
         print('\tCurrent version: ', current_version)
         print('\tLatest version: ', latest_version)
         if latest_version > current_version:
+            if 'version' in os.listdir():
+                os.remove('version')
+            f = open('version','w')
+            f.write(latest_version)
+            f.close()
             print('New version available, will download, install, and reboot') 
-        self.download_install_reboot(latest_version)
+            self.download_install_reboot(latest_version)
  
 
     def download_install_reboot(self, latest_version):
         self.using_network()
-        self.download_main_file(self.github_repo + '/contents/' + self.main_dir, latest_version)
+        self.prep_download_main_file(self.github_repo + '/contents/' + self.main_dir, latest_version)
         print('Update installed (', latest_version, '), will reboot now')
         machine.reset()
-
-
-
-
-
-
-    def download_and_install_update_if_available(self, ssid, password):
-        if 'next' in os.listdir(self.module):
-            if '.version_on_reboot' in os.listdir(self.modulepath('next')):
-                latest_version = self.get_version(self.modulepath('next'), '.version_on_reboot')
-                print('New update found: ', latest_version)
-                self._download_and_install_update(latest_version, ssid, password)
-        else:
-            print('No new updates found...')
-
-    def _download_and_install_update(self, latest_version, ssid, password):
-        OTAUpdater.using_network()
-
-        self.download_all_files(self.github_repo + '/contents/' + self.main_dir, latest_version)
-        self.rmtree(self.modulepath(self.main_dir))
-        os.rename(self.modulepath('next/.version_on_reboot'), self.modulepath('next/.version'))
-        os.rename(self.modulepath('next'), self.modulepath(self.main_dir))
-        print('Update installed (', latest_version, '), will reboot now')
-        machine.reset()
-
-    def apply_pending_updates_if_available(self):
-        if 'next' in os.listdir(self.module):
-            if '.version' in os.listdir(self.modulepath('next')):
-                pending_update_version = self.get_version(self.modulepath('next'))
-                print('Pending update found: ', pending_update_version)
-                self.rmtree(self.modulepath(self.main_dir))
-                os.rename(self.modulepath('next'), self.modulepath(self.main_dir))
-                print('Update applied (', pending_update_version, '), ready to rock and roll')
-            else:
-                print('Corrupt pending update found, discarding...')
-                self.rmtree(self.modulepath('next'))
-        else:
-            print('No pending update found')
-
-    def download_updates_if_available(self):
-        current_version = self.get_version(self.modulepath(self.main_dir))
-        latest_version = self.get_latest_version()
-
-        print('Checking version... ')
-        print('\tCurrent version: ', current_version)
-        print('\tLatest version: ', latest_version)
-        if latest_version > current_version:
-            print('Updating...')
-            #os.mkdir(self.modulepath('next'))
-            self.download_all_files(self.github_repo + '/contents/' + self.main_dir, latest_version)
-            with open(self.modulepath('next/.version'), 'w') as versionfile:
-                versionfile.write(latest_version)
-                versionfile.close()
-
-            return True
-        return False
-
-    def rmtree(self, directory):
-        for entry in os.ilistdir(directory):
-            is_dir = entry[1] == 0x4000
-            if is_dir:
-                self.rmtree(directory + '/' + entry[0])
-
-            else:
-                os.remove(directory + '/' + entry[0])
-        os.rmdir(directory)
-
-    def get_version(self, directory, version_file_name='.version'):
-        if version_file_name in os.listdir(directory):
-            f = open(directory + '/' + version_file_name)
-            version = f.read()
-            f.close()
-            return version
-        return '0.0'
 
     def get_latest_version(self):
         latest_release = self.http_client.get(self.github_repo + '/releases')
@@ -150,60 +65,16 @@ class OTAUpdater:
         latest_release.close()
         return version
 
-    def download_all_files(self, root_url, version):
-        new_file = self.http_client.get(root_url + '/main.py')
-
-        json = new_file.json()
-
-        download_url = json['download_url']
-        print('download url: ',download_url)
-        path = json['path'] 
-        print('path: ',path)
-        download_path = self.modulepath('next/' + path)
-        self.download_file(download_url, download_path)
-
-    def download_main_file(self, root_url, version):
+    def prep_download_main_file(self, root_url, version):
         new_file = self.http_client.get(root_url + '/main.py')
         json = new_file.json()
         download_url = json['download_url']
         path = json['path'] 
         download_path = self.modulepath('main.py')
-        self.download_the_file(download_url)
+        self.download_main_file(download_url)
 
 
-
-    def old_download_all_files(self, root_url, version):
-        #file_list = self.http_client.get(root_url + '?ref=refs/tags/' + version)
-        for file in file_list.json():
-            print(file)
-            if file['type'] == 'file':
-                download_url = file['download_url']
-                download_path = self.modulepath('next/' + file['path'].replace(self.main_dir + '/', ''))
-                self.download_file(download_url.replace('refs/tags/', ''), download_path)
-            elif file['type'] == 'dir':
-                path = self.modulepath('next/' + file['path'].replace(self.main_dir + '/', ''))
-                os.mkdir(path)
-                self.download_all_files(root_url + '/' + file['name'], version)
-
-        file_list.close()
-
-    def download_file(self, url, path):
-        print(url)
-        print('\tDownloading: ', path)
-        if not 'main' in os.listdir('next'):
-            os.mkdir('next/main')
-        with open(path, 'w') as outfile:
-            try:
-                print('149')
-                response = self.http_client.get(url)
-                print('151')
-                outfile.write(response.text)
-            finally:
-                response.close()
-                outfile.close()
-                gc.collect()
-
-    def download_the_file(self, url):
+    def download_main_file(self, url):
         print(url)
         with open('main.py', 'w') as outfile:
             try:

@@ -28,5 +28,7 @@ print(station.ifconfig())
 
 led = Pin(2, Pin.OUT)
 
-import webrepl
-webrepl.start()
+#import webrepl
+#webrepl.start()
+
+

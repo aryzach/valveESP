@@ -1,7 +1,5 @@
 from ota_updater import OTAUpdater
 
-
-
 def start():
     # your custom code goes here. Something like this: ...
     # from main.x import YourProject
@@ -53,9 +51,7 @@ def web_page():
 
 
 
-def boot():
-     start()
+start()
 
 
-boot()
 
