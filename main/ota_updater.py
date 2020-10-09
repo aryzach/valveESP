@@ -6,20 +6,21 @@ import urequests
 
 class OTAUpdater:
 
-    def __init__(self, github_repo, module='', main_dir='main'):
+    def __init__(self, github_repo, ssid, password, module='', main_dir='main'):
         self.http_client = HttpClient()
         self.github_repo = github_repo.rstrip('/').replace('https://github.com', 'https://api.github.com/repos')
         self.main_dir = main_dir
         self.module = module.rstrip('/')
+        self.ssid = ssid
+        self.password = password
 
-    @staticmethod
-    def using_network(ssid, password):
+    def using_network(self):
         import network
         sta_if = network.WLAN(network.STA_IF)
         if not sta_if.isconnected():
             print('connecting to network...')
             sta_if.active(True)
-            sta_if.connect(ssid, password)
+            sta_if.connect(self.ssid, self.password)
             while not sta_if.isconnected():
                 pass
         print('network config:', sta_if.ifconfig())
@@ -33,10 +34,45 @@ class OTAUpdater:
         print('\tLatest version: ', latest_version)
         if latest_version > current_version:
             print('New version available, will download and install on next reboot')
+            if not 'next' in os.listdir():
+                os.mkdir(self.modulepath('next'))
             with open(self.modulepath('next/.version_on_reboot'), 'w') as versionfile:
                 versionfile.write(latest_version)
                 print('written')
                 versionfile.close()
+
+    def get_current_version(self):
+        if 'version' in os.listdir(): 
+            f = open('version')
+            version = f.read()
+            f.close()
+            return version
+        else:
+            return '0.0'
+
+
+    def check_for_update_to_install(self):
+        print('Checking latest version... ')
+        current_version = self.get_current_version()
+        latest_version = self.get_latest_version()
+
+        print('\tCurrent version: ', current_version)
+        print('\tLatest version: ', latest_version)
+        if latest_version > current_version:
+            print('New version available, will download, install, and reboot') 
+        self.download_install_reboot(latest_version)
+ 
+
+    def download_install_reboot(self, latest_version):
+        self.using_network()
+        self.download_main_file(self.github_repo + '/contents/' + self.main_dir, latest_version)
+        print('Update installed (', latest_version, '), will reboot now')
+        machine.reset()
+
+
+
+
+
 
     def download_and_install_update_if_available(self, ssid, password):
         if 'next' in os.listdir(self.module):
@@ -48,7 +84,7 @@ class OTAUpdater:
             print('No new updates found...')
 
     def _download_and_install_update(self, latest_version, ssid, password):
-        OTAUpdater.using_network(ssid, password)
+        OTAUpdater.using_network()
 
         self.download_all_files(self.github_repo + '/contents/' + self.main_dir, latest_version)
         self.rmtree(self.modulepath(self.main_dir))
@@ -112,7 +148,6 @@ class OTAUpdater:
         headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
         version = latest_release.json()[0]['tag_name']
         latest_release.close()
-        print('after version')
         return version
 
     def download_all_files(self, root_url, version):
@@ -126,6 +161,15 @@ class OTAUpdater:
         print('path: ',path)
         download_path = self.modulepath('next/' + path)
         self.download_file(download_url, download_path)
+
+    def download_main_file(self, root_url, version):
+        new_file = self.http_client.get(root_url + '/main.py')
+        json = new_file.json()
+        download_url = json['download_url']
+        path = json['path'] 
+        download_path = self.modulepath('main.py')
+        self.download_the_file(download_url)
+
 
 
     def old_download_all_files(self, root_url, version):
@@ -146,6 +190,8 @@ class OTAUpdater:
     def download_file(self, url, path):
         print(url)
         print('\tDownloading: ', path)
+        if not 'main' in os.listdir('next'):
+            os.mkdir('next/main')
         with open(path, 'w') as outfile:
             try:
                 print('149')
@@ -156,6 +202,20 @@ class OTAUpdater:
                 response.close()
                 outfile.close()
                 gc.collect()
+
+    def download_the_file(self, url):
+        print(url)
+        with open('main.py', 'w') as outfile:
+            try:
+                print('149')
+                response = self.http_client.get(url)
+                print('151')
+                outfile.write(response.text)
+            finally:
+                response.close()
+                outfile.close()
+                gc.collect()
+
 
     def modulepath(self, path):
         return self.module + '/' + path if self.module else path
